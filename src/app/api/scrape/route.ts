@@ -2,18 +2,7 @@ import { chromium } from "playwright";
 import { NextResponse } from "next/server";
 import { getEmbeddings } from "@/lib/embed";
 import { pineconeIndex } from "@/lib/pinecone";
-
-
-// =======================================================================
-
-// Split text into chunks (e.g., 500 chars)
-function chunkText(text: string, chunkSize = 500) {
-  const chunks = [];
-  for (let i = 0; i < text.length; i += chunkSize) {
-    chunks.push(text.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 
 // =======================================================================
 
@@ -28,11 +17,12 @@ async function storeInPinecone(
     }
 
     const vectors = chunks.map((chunk, i) => ({
-      id: `vec-${Date.now()}-${i}`,
+      id: btoa(`${url}-${i}`), // Deterministic ID based on URL and chunk index
       values: embeddings[i],
       metadata: {
         text: chunk.slice(0, 500), // Truncate to avoid metadata size limits
         url: url,
+        chunkIndex: i,
       },
     }));
 
@@ -45,7 +35,7 @@ async function storeInPinecone(
     }
 
     const upsertResponse = await pineconeIndex.upsert(vectors);
-    console.log(`Upserted ${vectors.length} vectors`);
+    console.log(`Upserted ${vectors.length} vectors for ${url}`);
     return upsertResponse;
   } catch (error) {
     console.error("Pinecone store failed:", error);
@@ -60,51 +50,130 @@ async function storeInPinecone(
 // =======================================================================
 
 export async function GET(request: Request) {
-  // Extract target URL from query params (e.g., /api/scrape?url=/projects)
-  const { searchParams } = new URL(request.url);
-  const path = searchParams.get("url") || "/"; // Default to homepage
+  // Define all internal pages to scrape
+  const internalPaths = [
+    "/",
+    "/about", 
+    "/projects",
+    "/chat"
+  ];
 
   try {
-    // Launch Playwright (headless in production)
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
+    console.log("Starting full website scraping and indexing...");
+    
+    // Delete all existing vectors from Pinecone to start fresh
+    console.log("Clearing existing vectors from Pinecone...");
+    await pineconeIndex.deleteAll();
+    console.log("Successfully cleared all vectors from Pinecone");
 
-    // Scrape your OWN site (avoid third-party rate limits)
-    const targetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}${path}`;
-    await page.goto(targetUrl, { waitUntil: "networkidle" });
-
-    // Extract clean text (optional: filter nav/footer)
-    const pageText = await page.evaluate(() => {
-      // Skip boilerplate (customize for your site)
-      const body = document.querySelector("body")?.innerText || "";
-      return body
-        .replace(/\s+/g, " ") // Collapse whitespace
-        .trim();
+    // Initialize LangChain text splitter
+    const textSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 500,
+      chunkOverlap: 100,
+      separators: ["\n\n", "\n", " ", ""],
     });
+
+    // Launch Playwright browser once for all pages
+    const browser = await chromium.launch();
+    
+    let totalChunks = 0;
+    const processedPages = [];
+
+    // Process each internal page
+    for (const path of internalPaths) {
+      try {
+        console.log(`Processing page: ${path}`);
+        
+        const page = await browser.newPage();
+        const targetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}${path}`;
+        
+        await page.goto(targetUrl, { waitUntil: "networkidle" });
+
+        // Extract clean text content
+        const pageText = await page.evaluate(() => {
+          // Remove navigation, footer, and other boilerplate elements
+          const elementsToRemove = [
+            'nav', 'header[role="banner"]', 'footer', 
+            '[role="navigation"]', '.navigation', '#navigation',
+            '.header', '.footer', '.nav', '.navbar'
+          ];
+          
+          elementsToRemove.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(el => el.remove());
+          });
+
+          // Get main content
+          const mainContent = document.querySelector('main') || document.body;
+          const text = mainContent?.innerText || "";
+          
+          return text
+            .replace(/\s+/g, " ") // Collapse whitespace
+            .trim();
+        });
+
+        await page.close();
+
+        if (!pageText || pageText.length < 50) {
+          console.warn(`Skipping ${path} - insufficient content`);
+          continue;
+        }
+
+        // Use LangChain to split text into semantic chunks
+        const chunks = await textSplitter.splitText(pageText);
+        
+        if (chunks.length === 0) {
+          console.warn(`No chunks generated for ${path}`);
+          continue;
+        }
+
+        console.log(`Generated ${chunks.length} chunks for ${path}`);
+
+        // Generate embeddings for all chunks
+        const embeddings = await Promise.all(
+          chunks.map((chunk) => getEmbeddings(chunk))
+        );
+
+        // Store in Pinecone
+        await storeInPinecone(chunks, embeddings, targetUrl);
+        
+        totalChunks += chunks.length;
+        processedPages.push({
+          path,
+          url: targetUrl,
+          chunks: chunks.length,
+          textLength: pageText.length
+        });
+
+      } catch (pageError) {
+        console.error(`Failed to process page ${path}:`, pageError);
+        processedPages.push({
+          path,
+          error: pageError instanceof Error ? pageError.message : String(pageError)
+        });
+      }
+    }
 
     await browser.close();
 
-    // After scraping the page:
-    const chunks = chunkText(pageText);
+    console.log(`Scraping completed. Total chunks indexed: ${totalChunks}`);
 
-    // Generate embeddings for all chunks
-    const embeddings = await Promise.all(
-      chunks.map((chunk) => getEmbeddings(chunk))
-    );
-
-    // Store in Pinecone
-    await storeInPinecone(chunks, embeddings, targetUrl);
-
-    // Return raw or chunked text (for embeddings)
     return NextResponse.json({
       success: true,
-      url: targetUrl,
-      chunks: chunks.length, // Return count instead of raw content
+      message: "Successfully scraped and indexed all pages",
+      totalChunks,
+      processedPages,
+      timestamp: new Date().toISOString()
     });
+
   } catch (error) {
-    console.log(error);
+    console.error("Scraping process failed:", error);
     return NextResponse.json(
-      { success: false, error: "Scraping failed" },
+      { 
+        success: false, 
+        error: "Scraping failed",
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }
