@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getEmbeddings } from "@/lib/embed";
 import { pineconeIndex } from "@/lib/pinecone";
 
+
 // =======================================================================
 
 // Split text into chunks (e.g., 500 chars)

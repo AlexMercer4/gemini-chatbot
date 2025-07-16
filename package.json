@@ -1,10 +1,11 @@
 {
-  "name": "deepseek-chatbot",
+  "name": "gemini-chatbot",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "generate": "npx ts-node ./scripts/generate.ts",
     "start": "next start",
     "lint": "next lint"
   },
@@ -12,6 +13,8 @@
     "@ai-sdk/google": "^1.2.22",
     "@chroma-core/default-embed": "^0.1.8",
     "@google/generative-ai": "^0.24.1",
+    "@langchain/core": "^0.3.62",
+    "@langchain/google-genai": "^0.2.14",
     "@pinecone-database/pinecone": "^6.1.1",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -23,13 +26,15 @@
     "chromadb": "^3.0.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "langchain": "^0.3.29",
     "lucide-react": "^0.525.0",
     "next": "^14.2.30",
     "playwright": "^1.53.2",
     "react": "^18",
     "react-dom": "^18",
     "tailwind-merge": "^3.3.1",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "ts-node": "^10.9.2"
   },
   "devDependencies": {
     "@types/node": "^20",
