@@ -3,14 +3,19 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useChat } from "ai/react";
 import { Send, Bot, User, Loader2 } from "lucide-react";
+import { v4 as uuidv4 } from 'uuid';
 
 const ChatBot = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [conversationId, setConversationId] = useState<string>(() => uuidv4());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } =
     useChat({
       api: "/api/chat",
+      body: {
+        conversationId,
+      },
       initialMessages: [
         {
           id: "welcome",
@@ -19,7 +24,20 @@ const ChatBot = () => {
             "Hi! I'm your AI assistant. I can help answer questions about your website content. What would you like to know?",
         },
       ],
+      onFinish: (message) => {
+        // The message is automatically stored via the API route
+        console.log('Assistant message completed:', message.content.length, 'characters');
+      },
     });
+
+  // Reset conversation when chat is reopened after being closed
+  const handleToggleChat = () => {
+    if (!isOpen) {
+      // Generate new conversation ID when opening chat
+      setConversationId(uuidv4());
+    }
+    setIsOpen(!isOpen);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -41,7 +59,7 @@ const ChatBot = () => {
       {/* Chat Toggle Button */}
       {!isOpen && (
         <button
-          onClick={() => setIsOpen(true)}
+          onClick={handleToggleChat}
           className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-all duration-200 hover:scale-110"
         >
           <Bot size={24} />
@@ -58,7 +76,7 @@ const ChatBot = () => {
               <h3 className="font-semibold">AI Assistant</h3>
             </div>
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={handleToggleChat}
               className="text-white hover:text-gray-200 transition-colors"
             >
               ×

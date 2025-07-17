@@ -24,9 +24,6 @@ export default function Home() {
               <Link href="/projects" className="text-slate-600 hover:text-blue-600 transition-colors">
                 Projects
               </Link>
-              <Link href="/chat" className="text-slate-600 hover:text-blue-600 transition-colors">
-                AI Assistant
-              </Link>
               <Button asChild>
                 <Link href="/contact">Get In Touch</Link>
               </Button>
@@ -60,7 +57,7 @@ export default function Home() {
               <Button variant="outline" size="lg" className="px-8 py-4 text-lg" asChild>
                 <Link href="/chat">
                   <MessageSquare className="mr-2 w-5 h-5" />
-                  Chat with AI Assistant
+                  Open AI Assistant
                 </Link>
               </Button>
             </div>
@@ -338,7 +335,7 @@ export default function Home() {
               <Button size="lg" variant="outline" className="px-8 py-4 text-lg border-white text-white hover:bg-white hover:text-blue-600" asChild>
                 <Link href="/chat">
                   <MessageSquare className="mr-2 w-5 h-5" />
-                  Start Conversation
+                  Open AI Assistant
                 </Link>
               </Button>
             </div>
@@ -375,7 +372,6 @@ export default function Home() {
                 <ul className="space-y-2 text-slate-400">
                   <li><Link href="/about" className="hover:text-white transition-colors">About</Link></li>
                   <li><Link href="/projects" className="hover:text-white transition-colors">Projects</Link></li>
-                  <li><Link href="/chat" className="hover:text-white transition-colors">AI Assistant</Link></li>
                   <li><Link href="/contact" className="hover:text-white transition-colors">Contact</Link></li>
                 </ul>
               </div>
