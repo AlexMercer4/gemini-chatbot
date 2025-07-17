@@ -38,7 +38,7 @@ export default function AdminLogin() {
           title: "Login Successful",
           description: "Welcome to the admin dashboard!",
         });
-        router.push("/admin");
+        router.replace("/admin");
       }
     } catch (error) {
       toast({
